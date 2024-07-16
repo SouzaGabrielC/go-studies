@@ -9,7 +9,7 @@ func NumericSelectionSort[T interfaces.Numeric](arr []T) []T {
 	arrCopy := make([]T, len(arr), len(arr))
 	copy(arrCopy, arr)
 
-	for orderedIndex, _ := range ordered {
+	for orderedIndex := range ordered {
 		orderValue := arrCopy[0]
 		orderIndex := 0
 
