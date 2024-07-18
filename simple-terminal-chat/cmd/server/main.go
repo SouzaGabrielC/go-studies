@@ -16,6 +16,7 @@ func main() {
 	defer listener.Close()
 
 	connections := make(map[uuid.UUID]net.Conn)
+	messagePipeCh := make(chan *io.PipeReader)
 
 	for {
 		conn, err := listener.Accept()
@@ -26,11 +27,11 @@ func main() {
 		connId := uuid.New()
 		connections[connId] = conn
 
-		go handleConnectionRead(connId, conn, connections)
+		go handleConnectionRead(connId, conn, messagePipeCh)
 	}
 }
 
-func handleConnectionRead(connId uuid.UUID, conn net.Conn, connections map[uuid.UUID]net.Conn) {
+func handleConnectionRead(connId uuid.UUID, conn net.Conn, messagePipeCh chan *io.PipeReader) {
 	slog.Info(fmt.Sprintf("[%s] Connection established.", connId))
 	defer func(conn net.Conn) {
 		err := conn.Close()
@@ -43,6 +44,9 @@ func handleConnectionRead(connId uuid.UUID, conn net.Conn, connections map[uuid.
 	}(conn)
 
 	message := make([]byte, 128)
+
+	var pr *io.PipeReader
+	var pw *io.PipeWriter
 
 	for {
 		n, err := conn.Read(message)
@@ -57,8 +61,14 @@ func handleConnectionRead(connId uuid.UUID, conn net.Conn, connections map[uuid.
 			continue
 		}
 
-		// TODO: Change this approach to a centralized broadcast of the messages to avoid overlapping non finished messages
-		broadcastMessageToConnections(connections, connId, message[:n])
+		pr, pw = io.Pipe()
+		messagePipeCh <- pr
+
+		pw.Write(message[:n])
+
+		if message[n-1] == '\n' {
+			pw.Close()
+		}
 	}
 }
 
