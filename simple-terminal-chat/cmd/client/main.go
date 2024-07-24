@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log/slog"
 	"net"
@@ -17,18 +18,9 @@ func main() {
 
 	go handleConnectionRead(conn)
 
-	message := make([]byte, 128)
-	for {
-		n, err := os.Stdin.Read(message)
-		if err != nil {
-			break
-		}
-
-		_, err = fmt.Fprint(conn, string(message[:n]))
-		if err != nil {
-			slog.Error(fmt.Sprintf("Error sending message: %s", err))
-			break
-		}
+	_, err = os.Stdin.WriteTo(conn)
+	if err != nil {
+		slog.Error("Error writing message:", err.Error())
 	}
 }
 
@@ -44,26 +36,13 @@ func handleConnectionRead(conn net.Conn) {
 		slog.Info("Connection closed.")
 	}(conn)
 
-	continues := false
+	scanner := bufio.NewScanner(conn)
 
-	for {
-		message := make([]byte, 128)
-		n, err := conn.Read(message)
-		if err != nil {
-			slog.Error(fmt.Sprintf("Error on receiving the message: %s", err.Error()))
-			break
-		}
+	for scanner.Scan() {
+		fmt.Printf("Room message: %s\n", scanner.Text())
+	}
 
-		if n == 0 {
-			continue
-		}
-
-		if continues {
-			fmt.Printf("%s", string(message[:n]))
-		} else {
-			fmt.Printf("Room message: %s", string(message[:n]))
-		}
-
-		continues = message[n-1] != 10
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintln(os.Stderr, "reading standard input:", err)
 	}
 }
