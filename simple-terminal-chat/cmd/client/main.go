@@ -2,10 +2,12 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
 	"os"
+	"simple-terminal-chat/internals/message"
 )
 
 func main() {
@@ -16,11 +18,32 @@ func main() {
 	}
 	defer conn.Close()
 
+	fmt.Print("Enter your username: ")
+	clientName, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil {
+		slog.Error("Error getting username:", err.Error())
+		return
+	}
+
 	go handleConnectionRead(conn)
 
-	_, err = os.Stdin.WriteTo(conn)
-	if err != nil {
-		slog.Error("Error writing message:", err.Error())
+	scanner := bufio.NewScanner(os.Stdin)
+	jsonEncoderConn := json.NewEncoder(conn)
+
+	for scanner.Scan() {
+		text := scanner.Text()
+
+		err := jsonEncoderConn.Encode(message.Content{
+			Username: clientName[:len(clientName)-2],
+			Message:  text,
+		})
+		if err != nil {
+			slog.Error("Error writing to server:", err.Error())
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintln(os.Stderr, "reading standard input:", err)
 	}
 }
 
@@ -39,7 +62,15 @@ func handleConnectionRead(conn net.Conn) {
 	scanner := bufio.NewScanner(conn)
 
 	for scanner.Scan() {
-		fmt.Printf("Room message: %s\n", scanner.Text())
+		var msg message.Content
+
+		err := json.Unmarshal(scanner.Bytes(), &msg)
+		if err != nil {
+			slog.Error("Error unmarshalling message:", err.Error())
+			continue
+		}
+
+		fmt.Printf("Room message from [%s]: %s\n", msg.Username, msg.Message)
 	}
 
 	if err := scanner.Err(); err != nil {

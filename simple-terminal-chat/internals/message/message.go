@@ -2,10 +2,14 @@ package message
 
 import (
 	"github.com/google/uuid"
-	"io"
 )
 
+type Content struct {
+	Username string `json:"username"`
+	Message  string `json:"message"`
+}
+
 type Message struct {
-	MessageReader io.Reader
-	SenderId      uuid.UUID
+	SenderId       uuid.UUID
+	MessageContent Content
 }
